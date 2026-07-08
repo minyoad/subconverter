@@ -73,9 +73,16 @@
 
     -   [说明目录](#说明目录)
 
-    -   [支持类型](#支持类型)
+-   [支持类型](#支持类型)
 
-    -   [简易用法](#简易用法)
+-   [Docker 部署](#docker-部署)
+
+    -   [从 ghcr.io 拉取](#从-ghcrio-拉取)
+    -   [使用 Docker 运行](#使用-docker-运行)
+    -   [使用 Docker Compose 运行](#使用-docker-compose-运行)
+    -   [自定义配置](#自定义配置)
+
+-   [简易用法](#简易用法)
 
         -   [调用地址](#调用地址)
         -   [调用说明](#调用说明)
@@ -151,6 +158,72 @@
 3.  目标类型为 `mixed` 时，会输出所有支持的节点的单链接组成的普通订阅（Base64编码）
 
 4.  目标类型为 `auto` 时，会根据请求的 `User-Agent` 自动判断输出的目标类型，匹配规则可参见 [此处](https://github.com/tindy2013/subconverter/blob/master/src/handler/interfaces.cpp#L121) （该链接有可能因为代码修改而不能准确指向相应的代码）
+
+* * *
+
+## Docker 部署
+
+### 从 ghcr.io 拉取
+
+```bash
+docker pull ghcr.io/<your-username>/subconverter:master
+```
+
+### 使用 Docker 运行
+
+```bash
+docker run -d --restart=always -p 25500:25500 ghcr.io/<your-username>/subconverter:master
+```
+
+验证是否运行成功：
+
+```bash
+curl http://localhost:25500/version
+# 输出: subconverter vx.x.x backend
+```
+
+### 使用 Docker Compose 运行
+
+创建 `docker-compose.yml`：
+
+```yaml
+version: '3'
+services:
+  subconverter:
+    image: ghcr.io/<your-username>/subconverter:master
+    container_name: subconverter
+    ports:
+      - "25500:25500"
+    restart: always
+    volumes:
+      - /docker/subconverter/data:/base  # 将本地 /docker/subconverter/data 目录挂载到容器的 /base 目录
+```
+
+```bash
+docker-compose up -d
+```
+
+### 自定义配置
+
+如需使用自定义的 `pref` 配置和规则文件：
+
+```dockerfile
+FROM ghcr.io/<your-username>/subconverter:master
+# 将自定义文件复制到 /base/ 目录
+COPY replacements/ /base/
+EXPOSE 25500
+```
+
+```bash
+docker build -t subconverter-custom .
+docker run -d --restart=always -p 25500:25500 subconverter-custom
+```
+
+运行时更新配置：
+
+```bash
+curl -F "data=@newpref.ini" http://localhost:25500/updateconf?type=form\&token=password
+```
 
 * * *
 

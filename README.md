@@ -13,6 +13,11 @@ Utility to convert between various proxy subscription formats.
 
 - [subconverter](#subconverter)
   - [Supported Types](#supported-types)
+  - [Docker Deployment](#docker-deployment)
+    - [Pull from ghcr.io](#pull-from-ghcrio)
+    - [Run with Docker](#run-with-docker)
+    - [Run with Docker Compose](#run-with-docker-compose)
+    - [Custom Configuration](#custom-configuration)
   - [Quick Usage](#quick-usage)
     - [Access Interface](#access-interface)
     - [Description](#description)
@@ -47,8 +52,74 @@ Notice:
 
    - tg://http?server=1.2.3.4&port=233&user=user&pass=pass&remark=Example
 
-   - https://t.me/http?server=1.2.3.4&port=233&user=user&pass=pass&remark=Example
+    - https://t.me/http?server=1.2.3.4&port=233&user=user&pass=pass&remark=Example
 
+
+---
+
+## Docker Deployment
+
+### Pull from ghcr.io
+
+```bash
+docker pull ghcr.io/<your-username>/subconverter:master
+```
+
+### Run with Docker
+
+```bash
+docker run -d --restart=always -p 25500:25500 ghcr.io/<your-username>/subconverter:master
+```
+
+Verify it's running:
+
+```bash
+curl http://localhost:25500/version
+# output: subconverter vx.x.x backend
+```
+
+### Run with Docker Compose
+
+Create `docker-compose.yml`:
+
+```yaml
+version: '3'
+services:
+  subconverter:
+    image: ghcr.io/<your-username>/subconverter:master
+    container_name: subconverter
+    ports:
+      - "25500:25500"
+    restart: always
+    volumes:
+      - /docker/subconverter/data:/base  # Mount local /docker/subconverter/data to container /base
+```
+
+```bash
+docker-compose up -d
+```
+
+### Custom Configuration
+
+To use your own `pref` configuration and rules:
+
+```dockerfile
+FROM ghcr.io/<your-username>/subconverter:master
+# Copy your custom files into /base/
+COPY replacements/ /base/
+EXPOSE 25500
+```
+
+```bash
+docker build -t subconverter-custom .
+docker run -d --restart=always -p 25500:25500 subconverter-custom
+```
+
+To update configuration at runtime:
+
+```bash
+curl -F "data=@newpref.ini" http://localhost:25500/updateconf?type=form\&token=password
+```
 
 ---
 
