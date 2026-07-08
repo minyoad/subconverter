@@ -1,9 +1,10 @@
 FROM alpine:3.16 AS builder
 ARG THREADS="4"
 
-# build dependencies
+# build dependencies (with BuildKit cache for apk)
 WORKDIR /
-RUN set -xe && \
+RUN --mount=type=cache,target=/var/cache/apk \
+    set -xe && \
     apk add --no-cache --virtual .build-tools git g++ build-base linux-headers cmake python3 && \
     apk add --no-cache --virtual .build-deps curl-dev rapidjson-dev pcre2-dev yaml-cpp-dev && \
     git clone https://github.com/ftk/quickjspp --depth=1 && \
@@ -33,10 +34,11 @@ RUN set -xe && \
     cmake -DCMAKE_CXX_STANDARD=11 . && \
     make install -j $THREADS
 
-# build subconverter
+# build subconverter (with pip cache)
 COPY . /subconverter/
 WORKDIR /subconverter
-RUN python3 -m ensurepip && \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m ensurepip && \
     python3 -m pip install gitpython && \
     python3 scripts/update_rules.py -c scripts/rules_config.conf && \
     cmake -DCMAKE_BUILD_TYPE=Release . && \
