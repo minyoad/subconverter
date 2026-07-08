@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   linux_build:
+    if: false
     strategy:
       matrix:
         include:
@@ -54,6 +55,7 @@ jobs:
         draft: true
 
   macos_build:
+    if: false
     strategy:
       matrix:
         include:
@@ -93,6 +95,7 @@ jobs:
         draft: true
   
   windows_build:
+    if: false
     strategy:
       matrix:
         include:
