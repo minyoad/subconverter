@@ -23,7 +23,8 @@ enum class ProxyType
     SOCKS5,
     WireGuard,
     Hysteria,
-    Hysteria2
+    Hysteria2,
+    AnyTLS,
 };
 
 inline String getProxyTypeName(ProxyType type)
@@ -54,6 +55,8 @@ inline String getProxyTypeName(ProxyType type)
         return "Hysteria";
     case ProxyType::Hysteria2:
         return "Hysteria2";
+    case ProxyType::AnyTLS:
+        return "AnyTLS";
     default:
         return "Unknown";
     }
@@ -147,5 +150,6 @@ struct Proxy
 #define WG_DEFAULT_GROUP "WireGuardProvider"
 #define HYSTERIA_DEFAULT_GROUP "HysteriaProvider"
 #define HYSTERIA2_DEFAULT_GROUP "Hysteria2Provider"
+#define ANYTLS_DEFAULT_GROUP "AnyTLSProvider"
 
 #endif // PROXY_H_INCLUDED
