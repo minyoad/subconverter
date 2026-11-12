@@ -1,0 +1,207 @@
+version = 1
+
+#==========================================================
+# AI 服务分流 + 按地区自动切换（美国 / 新加坡）—— TOML 版
+# 用法：&config=config/AI_auto.toml
+# 与 AI_auto.ini 等价，二者选其一即可
+# 注意：TOML 外部配置必须有 version = 1，
+#       [custom] 放设置，[[custom_groups]] / [[rulesets]] 放根级
+# 规则文件位于 base/rules/（base_path=base）
+#==========================================================
+
+[custom]
+enable_rule_generator = true
+overwrite_original_rules = false
+clash_rule_base = "base/all_base.tpl"
+
+# 节点过滤：排除机场塞进订阅里的"剩余流量/到期时间"等信息节点
+exclude_remarks = ["(距离|剩余|重置|流量|到期|过期|官网|套餐|expire|traffic)"]
+
+#----------------------------------------------------------
+# 一、地区自动测速组
+#    只放该地区节点，客户端自动选延迟最低的
+#    刻意保持纯净：不要加 []🚀 节点选择 之类兜底，
+#    否则 url-test 会退化成"全球最低延迟"，地区筛选失效
+#    兜底放在第三节的顶层 select 组
+#
+# ⚠ 已知限制（subconverter 上游行为，不是本配置的问题）：
+#    Clash 目标下若某组一个节点都没匹配到，subexport.cpp 会强制填入 DIRECT。
+#    所以地区正则没命中时，这两个组会显示为 DIRECT。
+#    此时请把 AI 组手动切到 🚀 节点选择，避免 AI 流量走直连。
+#----------------------------------------------------------
+[[custom_groups]]
+name = "🇺🇸 美国自动"
+type = "url-test"
+rule = ["(?i)(美国|(^|[^a-zA-Z])US|United States|洛杉矶|Los Angeles|圣何塞|San Jose|西雅图|Seattle|达拉斯|Dallas|纽约|New York|芝加哥|Chicago|迈阿密|Miami|硅谷|Silicon Valley|阿什本|Ashburn)"]
+# 想更贴近 ChatGPT 连通性可改为 https://chatgpt.com/cdn-cgi/trace
+url = "http://www.gstatic.com/generate_204"
+interval = 300
+timeout = 5
+tolerance = 150
+
+[[custom_groups]]
+name = "🇸🇬 新加坡自动"
+type = "url-test"
+rule = ["(?i)(新加坡|狮城|Singapore|(^|[^a-zA-Z])SG)"]
+url = "http://www.gstatic.com/generate_204"
+interval = 300
+timeout = 5
+tolerance = 150
+
+#----------------------------------------------------------
+# 二、常规策略组（基础框架）
+#----------------------------------------------------------
+[[custom_groups]]
+name = "🚀 节点选择"
+type = "select"
+rule = ["[]♻️ 自动选择", "[]🎯 全球直连", ".*"]
+
+[[custom_groups]]
+name = "♻️ 自动选择"
+type = "url-test"
+rule = [".*"]
+url = "http://www.gstatic.com/generate_204"
+interval = 300
+timeout = 5
+tolerance = 150
+
+[[custom_groups]]
+name = "🎯 全球直连"
+type = "select"
+rule = ["[]DIRECT"]
+
+[[custom_groups]]
+name = "🛑 全球拦截"
+type = "select"
+rule = ["[]REJECT", "[]DIRECT"]
+
+[[custom_groups]]
+name = "🌍 国外媒体"
+type = "select"
+rule = ["[]🚀 节点选择", "[]♻️ 自动选择", "[]🎯 全球直连", ".*"]
+
+[[custom_groups]]
+name = "📲 电报信息"
+type = "select"
+rule = ["[]🚀 节点选择", "[]🎯 全球直连", ".*"]
+
+[[custom_groups]]
+name = "Ⓜ️ 微软服务"
+type = "select"
+rule = ["[]🎯 全球直连", "[]🚀 节点选择", ".*"]
+
+[[custom_groups]]
+name = "🍎 苹果服务"
+type = "select"
+rule = ["[]🚀 节点选择", "[]🎯 全球直连", "[]♻️ 自动选择", ".*"]
+
+[[custom_groups]]
+name = "🐟 漏网之鱼"
+type = "select"
+rule = ["[]🚀 节点选择", "[]🎯 全球直连", "[]♻️ 自动选择", ".*"]
+
+#----------------------------------------------------------
+# 三、AI 顶层策略组（[] 前缀 = 引用其它策略组）
+#    []🇺🇸 美国自动 / []🇸🇬 新加坡自动 = 引用上面的自动测速组
+#    末尾的 []🚀 节点选择 是兜底：万一美/新组都为空（节点没命名匹配上），
+#      这里仍有可用节点，不会退化成 DIRECT 直接暴露真实 IP
+#    地区自动组刻意保持纯净，不放兜底，否则 url-test 会退化成"全球最低延迟"
+#----------------------------------------------------------
+[[custom_groups]]
+name = "🤖 OpenAI"
+type = "select"
+rule = [
+    "[]🇺🇸 美国自动",
+    "[]🇸🇬 新加坡自动",
+    "(?i)(美国|(^|[^a-zA-Z])US|United States|洛杉矶|Los Angeles|圣何塞|San Jose|西雅图|Seattle|达拉斯|Dallas|纽约|New York|芝加哥|Chicago|迈阿密|Miami|硅谷|Silicon Valley|阿什本|Ashburn|新加坡|狮城|Singapore|(^|[^a-zA-Z])SG)",
+    "[]🚀 节点选择"
+]
+
+[[custom_groups]]
+name = "🎭 Claude"
+type = "select"
+rule = [
+    "[]🇺🇸 美国自动",
+    "[]🇸🇬 新加坡自动",
+    "(?i)(美国|(^|[^a-zA-Z])US|United States|洛杉矶|Los Angeles|圣何塞|San Jose|西雅图|Seattle|达拉斯|Dallas|纽约|New York|芝加哥|Chicago|迈阿密|Miami|硅谷|Silicon Valley|阿什本|Ashburn|新加坡|狮城|Singapore|(^|[^a-zA-Z])SG)",
+    "[]🚀 节点选择"
+]
+
+[[custom_groups]]
+name = "🎬 Muse"
+type = "select"
+rule = [
+    "[]🇺🇸 美国自动",
+    "[]🇸🇬 新加坡自动",
+    "(?i)(美国|(^|[^a-zA-Z])US|United States|洛杉矶|Los Angeles|圣何塞|San Jose|西雅图|Seattle|达拉斯|Dallas|纽约|New York|芝加哥|Chicago|迈阿密|Miami|硅谷|Silicon Valley|阿什本|Ashburn|新加坡|狮城|Singapore|(^|[^a-zA-Z])SG)",
+    "[]🚀 节点选择"
+]
+
+[[custom_groups]]
+name = "🧠 其它 AI"
+type = "select"
+rule = [
+    "[]🇺🇸 美国自动",
+    "[]🇸🇬 新加坡自动",
+    "(?i)(美国|(^|[^a-zA-Z])US|United States|洛杉矶|Los Angeles|圣何塞|San Jose|西雅图|Seattle|达拉斯|Dallas|纽约|New York|芝加哥|Chicago|迈阿密|Miami|硅谷|Silicon Valley|阿什本|Ashburn|新加坡|狮城|Singapore|(^|[^a-zA-Z])SG)",
+    "[]🚀 节点选择"
+]
+
+#----------------------------------------------------------
+# 四、分流规则（顺序即优先级）
+#----------------------------------------------------------
+[[rulesets]]
+group = "🤖 OpenAI"
+ruleset = "rules/OpenAI.list"
+
+[[rulesets]]
+group = "🎭 Claude"
+ruleset = "rules/Claude.list"
+
+[[rulesets]]
+group = "🎬 Muse"
+ruleset = "rules/Muse.list"
+
+[[rulesets]]
+group = "🧠 其它 AI"
+ruleset = "rules/AI.list"
+
+[[rulesets]]
+group = "🎯 全球直连"
+ruleset = "rules/LocalAreaNetwork.list"
+
+[[rulesets]]
+group = "Ⓜ️ 微软服务"
+ruleset = "rules/MSServices.list"
+
+[[rulesets]]
+group = "🎯 全球直连"
+ruleset = "rules/DivineEngine/Surge/Ruleset/Unbreak.list"
+
+[[rulesets]]
+group = "🛑 全球拦截"
+ruleset = "rules/DivineEngine/Surge/Ruleset/Guard/Hijacking.list"
+
+[[rulesets]]
+group = "🌍 国外媒体"
+ruleset = "rules/DivineEngine/Surge/Ruleset/StreamingMedia/Streaming.list"
+
+[[rulesets]]
+group = "📲 电报信息"
+ruleset = "rules/DivineEngine/Surge/Ruleset/Extra/Telegram/Telegram.list"
+
+[[rulesets]]
+group = "🍎 苹果服务"
+ruleset = "rules/DivineEngine/Surge/Ruleset/Extra/Apple/Apple.list"
+
+[[rulesets]]
+group = "🎯 全球直连"
+ruleset = "rules/DivineEngine/Surge/Ruleset/China.list"
+
+[[rulesets]]
+group = "🎯 全球直连"
+ruleset = "[]GEOIP,CN"
+
+[[rulesets]]
+group = "🐟 漏网之鱼"
+ruleset = "[]FINAL"

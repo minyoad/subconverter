@@ -1,0 +1,18 @@
+# Muse (Meta AI Agent) 规则集
+# 官网：https://muse.ai  —— 页面资源全部自托管于 muse.ai，未发现独立 API/CDN 域名
+# 说明：Muse 的登录走 Meta 账号体系（Facebook/Instagram），若登录失败，
+#       请把下方“可选”中的 facebook 相关域名一并放开。
+#       实测 muse.ai 站点静态资源同域，因此 DOMAIN-SUFFIX,muse.ai 即可覆盖主体流量。
+
+# > 主站（含 www）
+DOMAIN-SUFFIX,muse.ai
+
+# > Meta AI / Meta 账号（可选，登录与账号页；默认注释，需要时取消）
+# 说明：muse.ai 首页的登录入口指向 Meta 账号体系，若登录空白/失败再启用以下条目
+# DOMAIN-SUFFIX,meta.ai
+# DOMAIN,ai.meta.com
+# DOMAIN-SUFFIX,graph.facebook.com
+# DOMAIN-SUFFIX,facebook.com
+# DOMAIN-SUFFIX,fbcdn.net
+# DOMAIN-SUFFIX,cdninstagram.com
+# DOMAIN-SUFFIX,instagram.com

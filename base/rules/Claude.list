@@ -1,0 +1,17 @@
+# Anthropic / Claude 规则集
+# 参考 blackmatrix7/ios_rule_script，补充 console / statsig 等依赖
+
+DOMAIN-SUFFIX,anthropic.com
+DOMAIN-SUFFIX,claude.ai
+DOMAIN-SUFFIX,claude.com
+DOMAIN-KEYWORD,anthropic
+DOMAIN-KEYWORD,claude
+
+# > 静态资源 / 统计
+DOMAIN,cdn.usefathom.com
+DOMAIN-SUFFIX,statsig.com
+DOMAIN-SUFFIX,segment.io
+DOMAIN-SUFFIX,sentry.io
+DOMAIN-SUFFIX,intercom.io
+DOMAIN-SUFFIX,intercomcdn.com
+DOMAIN,static.cloudflareinsights.com

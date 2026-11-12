@@ -1,0 +1,50 @@
+# OpenAI / ChatGPT 规则集
+# 参考 blackmatrix7/ios_rule_script，补充 chat.com / sora / 登录相关域名
+# 注意：本文件为 Surge 类型规则，行尾不带策略组名，策略组由 ruleset= 前缀指定
+
+# > 核心站点
+DOMAIN-SUFFIX,openai.com
+DOMAIN-SUFFIX,chatgpt.com
+DOMAIN-SUFFIX,chat.com
+DOMAIN-SUFFIX,sora.com
+DOMAIN-SUFFIX,ai.com
+DOMAIN-KEYWORD,openai
+DOMAIN-KEYWORD,chatgpt
+
+# > 静态资源 / 用户内容
+DOMAIN-SUFFIX,oaistatic.com
+DOMAIN-SUFFIX,oaiusercontent.com
+DOMAIN-SUFFIX,openaicom.imgix.net
+DOMAIN,openaicomproductionae4b.blob.core.windows.net
+DOMAIN,production-openaicom-storage.azureedge.net
+DOMAIN,openaicom-api-bdcpf8c6d2e9atf6.z01.azurefd.net
+DOMAIN-SUFFIX,openaiapi-site.azureedge.net
+
+# > 登录 / 风控 / 人机验证
+DOMAIN-SUFFIX,auth0.com
+DOMAIN-SUFFIX,identrust.com
+DOMAIN-SUFFIX,client-api.arkoselabs.com
+DOMAIN,openai-api.arkoselabs.com
+DOMAIN,chat.openai.com.cdn.cloudflare.net
+DOMAIN,static.cloudflareinsights.com
+
+# > 实时语音 / 会话（LiveKit）
+DOMAIN-SUFFIX,chatgpt.livekit.cloud
+DOMAIN-SUFFIX,host.livekit.cloud
+DOMAIN-SUFFIX,turn.livekit.cloud
+
+# > 支付 / 订阅
+DOMAIN-SUFFIX,stripe.com
+
+# > 依赖的第三方服务
+DOMAIN-SUFFIX,algolia.net
+DOMAIN-SUFFIX,api.statsig.com
+DOMAIN-SUFFIX,events.statsigapi.net
+DOMAIN-SUFFIX,featuregates.org
+DOMAIN-SUFFIX,launchdarkly.com
+DOMAIN-SUFFIX,intercom.io
+DOMAIN-SUFFIX,intercomcdn.com
+DOMAIN-SUFFIX,segment.io
+DOMAIN-SUFFIX,sentry.io
+DOMAIN-SUFFIX,observeit.net
+DOMAIN,browser-intake-datadoghq.com

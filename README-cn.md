@@ -106,6 +106,8 @@
 
         -   [外部配置](#外部配置)
 
+        -   [内置 AI 分流配置（美国 / 新加坡自动切换）](#内置-ai-分流配置美国--新加坡自动切换)
+
         -   [模板功能](#模板功能)
 
             -   [模板调用](#模板调用)
@@ -1298,6 +1300,63 @@ clash_rule_base=base/forcerule.yml
 ```
 
 </details>
+
+### 内置 AI 分流配置（美国 / 新加坡自动切换）
+
+> 仓库内置两套等价的外部配置，二选一即可：
+
+| 文件 | 说明 |
+| --- | --- |
+| `base/config/AI_auto.ini` | INI 版，带完整中文注释 |
+| `base/config/AI_auto.toml` | TOML 版，与 INI 语义完全等价 |
+
+调用示例：
+
+```
+https://你的地址/sub?target=clash&url=你的订阅&config=config/AI_auto.ini
+```
+
+#### 策略组结构
+
+```
+🇺🇸 美国自动   (url-test, 只含美国节点)
+🇸🇬 新加坡自动  (url-test, 只含新加坡节点)
+
+🤖 OpenAI   select → []🇺🇸 美国自动 / []🇸🇬 新加坡自动 / <美+新节点> / []🚀 节点选择
+🎭 Claude   select → 同上
+🎬 Muse     select → 同上
+🧠 其它 AI  select → 同上（Gemini / Copilot / Perplexity / Grok / Mistral / Cursor / Poe / HuggingFace）
+```
+
+- 两层结构：地区组负责 `url-test` 自动选延迟最低的节点，AI 顶层组负责给规则分流。
+- 地区组**刻意保持纯净**，只放本地区节点。若在里面加 `[]🚀 节点选择`，`url-test` 会退化成"全球最低延迟"，地区筛选就失效了。
+- AI 顶层组末尾的 `[]🚀 节点选择` 是兜底：万一地区正则一个节点都没命中，这里仍有可用节点，不会退化成 `DIRECT` 直接泄露真实 IP。
+
+#### 已知限制
+
+Clash 目标下，如果某个策略组最终一个节点都没匹配到，subconverter 会强制填入 `DIRECT`（见 `src/generator/config/subexport.cpp` 中 `filtered_nodelist.emplace_back("DIRECT")`）。
+
+所以当你换了一个节点命名风格完全不同的机场时，`🇺🇸 美国自动` / `🇸🇬 新加坡自动` 可能显示为 `DIRECT`。此时按下面的方法调整正则：
+
+```bash
+python scripts/analyze_nodes.py 你的订阅.yaml    # 统计节点命名与地区命中
+python scripts/verify_ai_regex.py 你的订阅.yaml  # 校验美/新正则是否互斥、无误伤
+```
+
+#### 节点过滤
+
+机场常在订阅里塞入"距离下次重置剩余：25 天"这类信息节点。配置里已通过下面的设置过滤：
+
+```ini
+exclude_remarks=(距离|剩余|重置|流量|到期|过期|官网|套餐|expire|traffic)
+```
+
+#### 自检脚本
+
+```bash
+python scripts/check_ai_config.py            # 配置自洽性（字段、引用、INI/TOML 一致性）
+python scripts/check_generated.py 输出.yaml   # 生成结果校验（组归属、规则顺序、垃圾节点）
+```
 
 ### 模板功能
 

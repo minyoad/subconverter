@@ -1,0 +1,48 @@
+# 其它 AI 服务合集（Gemini / Copilot / Perplexity / Grok / Mistral / Cursor / Poe 等）
+# 与 OpenAI.list、Claude.list、Muse.list 分开，便于各自指向不同地区策略组
+
+# > Google Gemini / AI Studio
+DOMAIN,ai.google.dev
+DOMAIN,aistudio.google.com
+DOMAIN,alkalimakersuite-pa.clients6.google.com
+DOMAIN,makersuite.google.com
+DOMAIN,generativelanguage.googleapis.com
+DOMAIN-SUFFIX,bard.google.com
+DOMAIN-SUFFIX,deepmind.com
+DOMAIN-SUFFIX,deepmind.google
+DOMAIN-SUFFIX,gemini.google.com
+DOMAIN-SUFFIX,generativeai.google
+DOMAIN-SUFFIX,notebooklm.google.com
+DOMAIN-SUFFIX,proactivebackend-pa.googleapis.com
+
+# > Microsoft Copilot / Bing Chat
+DOMAIN,copilot.microsoft.com
+DOMAIN,services.bingapis.com
+DOMAIN,sydney.bing.com
+DOMAIN,r.bing.com
+DOMAIN,edgeservices.bing.com
+DOMAIN-SUFFIX,copilot.cloud.microsoft
+DOMAIN-SUFFIX,copilot.microsoft.com
+DOMAIN,api.githubcopilot.com
+DOMAIN,copilot-proxy.githubusercontent.com
+
+# > Perplexity
+DOMAIN-SUFFIX,perplexity.ai
+
+# > xAI Grok
+DOMAIN-SUFFIX,x.ai
+DOMAIN-SUFFIX,grok.com
+
+# > Mistral
+DOMAIN-SUFFIX,mistral.ai
+
+# > Cursor
+DOMAIN-SUFFIX,cursor.com
+DOMAIN-SUFFIX,cursor.sh
+
+# > Poe
+DOMAIN-SUFFIX,poe.com
+
+# > Hugging Face
+DOMAIN-SUFFIX,huggingface.co
+DOMAIN-SUFFIX,hf.co
