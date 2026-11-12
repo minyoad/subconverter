@@ -9,7 +9,11 @@ common:
   include_remarks: []
   enable_filter: false
   filter_script: ""
-  default_external_config: "" # config/example_external_config.yml
+  # Applies to every request without an explicit &config=; takes precedence over &groups= / &rules=.
+  # This fork points it at the built-in AI routing config so /sub works without &config=.
+  # Set to "" to restore the stock behaviour.
+  # (.toml is used here on purpose: the external config loader auto-detects INI/YAML/TOML.)
+  default_external_config: "config/AI_auto.toml" # config/example_external_config.yml
   base_path: base
   clash_rule_base: base/all_base.tpl
   surge_rule_base: base/all_base.tpl
@@ -150,10 +154,14 @@ advanced:
   max_allowed_rulesets: 0
   max_allowed_rules: 0
   max_allowed_download_size: 0
-  enable_cache: false
+  # Enable local cache. Subscription data is cached for cache_subscription seconds,
+  # so repeated client requests don't re-fetch upstream (also avoids airport rate limits).
+  enable_cache: true
   cache_subscription: 60
   cache_config: 300
   cache_ruleset: 21600
+  # Serve the last successful cache when the fetch fails (timeout / 204 / 403)
+  serve_cache_on_fetch_fail: true
   script_clean_context: true
   async_fetch_ruleset: false
   skip_failed_links: false

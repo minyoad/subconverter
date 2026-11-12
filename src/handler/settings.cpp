@@ -738,6 +738,7 @@ void readTOMLConf(toml::value &root)
                   "cache_subscription", cache_subscription,
                   "cache_config", cache_config,
                   "cache_ruleset", cache_ruleset,
+                  "serve_cache_on_fetch_fail", global.serveCacheOnFetchFail,
                   "script_clean_context", global.scriptCleanContext,
                   "async_fetch_ruleset", global.asyncFetchRuleset,
                   "skip_failed_links", global.skipFailedLinks
@@ -778,6 +779,7 @@ void readTOMLConf(toml::value &root)
     else
     {
         global.cacheSubscription = global.cacheConfig = global.cacheRuleset = 0;
+        global.serveCacheOnFetchFail = false;
     }
 
     writeLog(0, "Load preference settings in TOML format completed.", LOG_LEVEL_INFO);

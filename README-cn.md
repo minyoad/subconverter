@@ -107,7 +107,6 @@
         -   [外部配置](#外部配置)
 
         -   [内置 AI 分流配置（美国 / 新加坡自动切换）](#内置-ai-分流配置美国--新加坡自动切换)
-
         -   [模板功能](#模板功能)
 
             -   [模板调用](#模板调用)
@@ -1310,7 +1309,39 @@ clash_rule_base=base/forcerule.yml
 | `base/config/AI_auto.ini` | INI 版，带完整中文注释 |
 | `base/config/AI_auto.toml` | TOML 版，与 INI 语义完全等价 |
 
-调用示例：
+#### 默认已自动生效（无需再写 `config=`）
+
+`base/pref.example.ini` / `pref.example.toml` / `pref.example.yml` 里都已经把这项打开：
+
+```ini
+default_external_config=config/AI_auto.ini
+```
+
+所以直接这样调用就行，**不需要**再传 `config=`：
+
+```
+https://你的地址/sub?target=clash&url=你的订阅
+```
+
+程序启动时如果还没有 `pref.ini`，会按 `pref.toml` → `pref.yml` → `pref.ini` 的顺序自动从对应的 `pref.example.*` 复制一份，因此这三种入口都能拿到默认配置。
+
+如果你**已经**有 `pref.ini`（升级前就存在），示例文件的改动不会覆盖它，需要手动加一行：
+
+```ini
+default_external_config=config/AI_auto.ini
+```
+
+> **注意这个开关是全局的**：一旦打开，所有不带 `config=` 的请求都会套用 AI 配置，
+> 并且优先级高于 URL 里的 `&groups=` / `&rules=`。
+> 想恢复成原来的行为，把它留空即可：
+> ```ini
+> default_external_config=
+> ```
+
+配置是**叠加式**的：内置策略组与规则集用 `!!import:` 引入，所以广告拦截、
+B站、Netflix、YouTube 等原有规则都会保留，只是在上面多了 AI 相关组与规则。
+
+如果仍然想按需生效，也可以显式传 `config=`（此时以传入的为准）：
 
 ```
 https://你的地址/sub?target=clash&url=你的订阅&config=config/AI_auto.ini
@@ -1322,15 +1353,16 @@ https://你的地址/sub?target=clash&url=你的订阅&config=config/AI_auto.ini
 🇺🇸 美国自动   (url-test, 只含美国节点)
 🇸🇬 新加坡自动  (url-test, 只含新加坡节点)
 
-🤖 OpenAI   select → []🇺🇸 美国自动 / []🇸🇬 新加坡自动 / <美+新节点> / []🚀 节点选择
+🤖 OpenAI   select → []🇺🇸 美国自动 / []🇸🇬 新加坡自动 / <美+新节点> / []🔰 节点选择
 🎭 Claude   select → 同上
 🎬 Muse     select → 同上
 🧠 其它 AI  select → 同上（Gemini / Copilot / Perplexity / Grok / Mistral / Cursor / Poe / HuggingFace）
 ```
 
 - 两层结构：地区组负责 `url-test` 自动选延迟最低的节点，AI 顶层组负责给规则分流。
-- 地区组**刻意保持纯净**，只放本地区节点。若在里面加 `[]🚀 节点选择`，`url-test` 会退化成"全球最低延迟"，地区筛选就失效了。
-- AI 顶层组末尾的 `[]🚀 节点选择` 是兜底：万一地区正则一个节点都没命中，这里仍有可用节点，不会退化成 `DIRECT` 直接泄露真实 IP。
+- 地区组**刻意保持纯净**，只放本地区节点。若在里面加 `[]🔰 节点选择`，`url-test` 会退化成"全球最低延迟"，地区筛选就失效了。
+- AI 顶层组末尾的 `[]🔰 节点选择` 是兜底：万一地区正则一个节点都没命中，这里仍有可用节点，不会退化成 `DIRECT` 直接泄露真实 IP。
+  （`🔰 节点选择` 是内置 `snippets/groups.txt` 里的默认组名；旧版自带 `🚀 节点选择` 的配置也仍然可用。）
 
 #### 已知限制
 
@@ -1348,15 +1380,49 @@ python scripts/verify_ai_regex.py 你的订阅.yaml  # 校验美/新正则是否
 机场常在订阅里塞入"距离下次重置剩余：25 天"这类信息节点。配置里已通过下面的设置过滤：
 
 ```ini
-exclude_remarks=(距离|剩余|重置|流量|到期|过期|官网|套餐|expire|traffic)
+exclude_remarks=(距离|剩余|重置|流量|到期|过期|官网|套餐|时间|产品|平台|expire|traffic)
 ```
+
+注意：外部配置里的 `exclude_remarks` 会**替换**（不是合并）`pref.ini` 的全局设置，
+所以这里保留了 pref 默认的 `时间|产品|平台`，再补上更严格的项，避免反而放宽过滤。
+如果你在 `pref.ini` 里自定义过 `exclude_remarks`，需要把两者合并后再写进这里。
 
 #### 自检脚本
 
 ```bash
-python scripts/check_ai_config.py            # 配置自洽性（字段、引用、INI/TOML 一致性）
+python scripts/check_ai_config.py            # 配置自洽性（字段、引用、INI/TOML 一致性、默认配置指向）
 python scripts/check_generated.py 输出.yaml   # 生成结果校验（组归属、规则顺序、垃圾节点）
 ```
+
+#### 订阅缓存（强烈建议保持开启）
+
+subconverter 默认**不缓存**上游订阅：`base/pref.example.ini` 里原本是 `enable_cache=false`，
+此时每个客户端、每次刷新都会重新去机场抓一遍，既慢又容易触发机场的频率限制
+（表现为返回 `204` 或 `403`，然后 subconverter 报"获取上游订阅失败"）。
+
+本仓库的三个示例文件已把缓存打开：
+
+```ini
+enable_cache=true
+cache_subscription=60      ; 订阅缓存秒数，60 表示 1 分钟内只回源一次
+cache_config=300           ; 外部配置缓存
+cache_ruleset=21600        ; 规则集缓存 6 小时
+serve_cache_on_fetch_fail=true   ; 抓取失败时用旧缓存兜底
+```
+
+`serve_cache_on_fetch_fail` 的作用：机场超时 / 返回 204 / 返回 403 时，
+用上一次成功的内容继续生成配置，而不是直接失败。
+
+实测效果（3 次客户端请求，同一个上游地址）：
+
+| `enable_cache` | 上游被请求次数 | 失败时行为 |
+| --- | --- | --- |
+| `false`（原默认） | 3 次 | 直接报错 |
+| `true` + `serve_cache_on_fetch_fail=true` | 1 次 | 返回上次成功的配置 |
+
+> 注意：`enable_cache=false` 会把三个 TTL 全部清零，日志里连 `CACHE HIT` 都看不到。
+> 想确认缓存是否生效，可以把 `log_level` 临时设为 `verbose`，然后看是否出现
+> `CACHE HIT` / `Fetch failed. Serving cached content.`。
 
 ### 模板功能
 

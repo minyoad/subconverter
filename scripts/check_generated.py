@@ -34,7 +34,10 @@ JUNK = r'(?i)(距离|剩余|重置|流量|到期|过期|官网|套餐|expire|tra
 
 AUTO_GROUPS = ['🇺🇸 美国自动', '🇸🇬 新加坡自动']
 AI_GROUPS = ['🤖 OpenAI', '🎭 Claude', '🎬 Muse', '🧠 其它 AI']
-FALLBACK = '🚀 节点选择'
+# 兜底组来自内置 snippets/groups.txt 的 🔰 节点选择
+# （老版 AI_auto.ini 自带 🚀 节点选择，两版都接受）
+FALLBACKS = ('🔰 节点选择', '🚀 节点选择')
+FALLBACK = FALLBACKS[0]
 
 
 def main():
@@ -71,7 +74,7 @@ def main():
         if not ps:
             errors.append('%s 组为空' % g)
         for n in ps:
-            if n in ('DIRECT', 'REJECT') or n.startswith('[]') or n == FALLBACK:
+            if n in ('DIRECT', 'REJECT') or n.startswith('[]') or n in FALLBACKS:
                 errors.append('%s 混入非地区项: %s' % (g, n))
                 continue
             hit_us, hit_sg = re.search(US, n), re.search(SG, n)
@@ -100,8 +103,9 @@ def main():
         for need in AUTO_GROUPS:
             if need not in ps:
                 errors.append('%s 没有引用 %s' % (g, need))
-        if not ps or ps[-1] != FALLBACK:
-            errors.append('%s 末尾不是兜底组 %s（真实 IP 泄露风险）' % (g, FALLBACK))
+        if not ps or ps[-1] not in FALLBACKS:
+            errors.append('%s 末尾不是兜底组 %s（真实 IP 泄露风险）'
+                          % (g, ' / '.join(FALLBACKS)))
 
     # ---- 4. 规则顺序 ----
     print('\n=== 规则顺序 ===')

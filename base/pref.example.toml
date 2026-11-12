@@ -37,6 +37,12 @@ enable_filter = false
 #'''
 
 # Setting an external config file as default when none is specified, supports local files/URL
+# When set, every request that does NOT carry an explicit &config= will use this file.
+# NOTE: a global default takes precedence over the &groups= / &rules= URL parameters.
+# This fork enables the built-in AI routing config (US/SG auto-switch) by default,
+# so /sub?target=clash&url=... already gets the AI groups without &config=.
+# Set it to "" to restore the stock behaviour, or point it to your own config.
+default_external_config = "config/AI_auto.toml"
 # default_external_config = "config/example_external_config.toml"
 
 # The file scope limit of the 'rule_base' options in external configs.
@@ -339,10 +345,14 @@ max_concurrent_threads = 4
 max_allowed_rulesets = 64
 max_allowed_rules = 0
 max_allowed_download_size = 0
+# Enable local cache. Subscription data is cached for cache_subscription seconds,
+# so repeated client requests don't re-fetch upstream (also avoids airport rate limits).
 enable_cache = true
 cache_subscription = 60
 cache_config = 300
 cache_ruleset = 21600
+# Serve the last successful cache when the fetch fails (timeout / 204 / 403)
+serve_cache_on_fetch_fail = true
 script_clean_context = true
 async_fetch_ruleset = false
 skip_failed_links = true
