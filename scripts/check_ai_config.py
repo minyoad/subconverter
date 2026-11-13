@@ -21,6 +21,14 @@ import re
 import sys
 import tomllib
 
+# Windows 控制台默认 GBK，而分流的组名/规则里带 emoji。
+# 不处理时，脚本一旦报错又抛 UnicodeEncodeError，真正的问题反而看不到。
+# 这里只放宽错误处理、不强制改编码：GBK 终端里中文照常显示，emoji 变成 ?，
+# 而 UTF-8 终端（chcp 65001 / Windows Terminal）不受影响。
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, 'reconfigure'):
+        _stream.reconfigure(errors='replace')
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
 
@@ -288,6 +296,44 @@ def check_semantics(ini_groups, toml_groups):
                           % (name, i_rules, t_rules))
 
 
+def check_snippets():
+    """INI 与 TOML 各自 import 的内置片段必须内容等价。
+
+    AI_auto.ini 引入 snippets/*.txt，AI_auto.toml 引入 snippets/*.toml。
+    这两套文件由上游分别维护，曾经不同步：.txt 里 NETFLIX、广告拦截、
+    运营劫持三个组和 NETFLIX 规则集被注释掉，而 .toml 里是启用的，
+    于是「INI/TOML 语义等价」被悄悄破坏（组数 16 vs 19）。
+    这里逐个比对，任何一边被注释掉都会被抓出来。
+    """
+    pairs = (('groups.txt', 'groups.toml'), ('rulesets.txt', 'rulesets.toml'))
+    for txt, toml in pairs:
+        p_txt, p_toml = _import_path('snippets/' + txt), _import_path('snippets/' + toml)
+        if not (os.path.exists(p_txt) and os.path.exists(p_toml)):
+            errors.append('missing snippet pair: %s / %s' % (txt, toml))
+            continue
+
+        # INI 片段：每行 "name`type`..."，注释行以 ; 开头
+        txt_items = [s for s, _ in _ini_file_items(p_txt)]
+
+        # TOML 片段：按行序遍历，保证顺序也一致
+        doc = tomllib.load(open(p_toml, 'rb'))
+        if txt.startswith('groups'):
+            toml_items = doc.get('custom_groups', [])
+            txt_keys = [x.split('`')[0] for x in txt_items]
+            toml_keys = [g.get('name') for g in toml_items]
+        else:
+            toml_items = doc.get('rulesets', [])
+            txt_keys = [tuple(x.split(',', 1)) for x in txt_items]
+            toml_keys = [(r.get('group'), r.get('ruleset')) for r in toml_items]
+
+        if txt_keys != toml_keys:
+            only_txt = [k for k in txt_keys if k not in toml_keys]
+            only_toml = [k for k in toml_keys if k not in txt_keys]
+            errors.append('snippets/%s vs %s differ:\n'
+                          '      .txt only =%r\n      .toml only=%r'
+                          % (txt, toml, only_txt, only_toml))
+
+
 def check_default_config():
     """三个 pref 示例文件都应把 default_external_config 指向存在的文件。"""
     for p in PREF_FILES:
@@ -339,6 +385,7 @@ def main():
     check_rulesets(toml_imp_rules, toml_names)
 
     check_rule_files()
+    check_snippets()
     check_semantics(ini_own, toml_own)
     check_default_config()
 

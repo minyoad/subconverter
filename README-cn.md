@@ -1390,9 +1390,13 @@ exclude_remarks=(距离|剩余|重置|流量|到期|过期|官网|套餐|时间|
 #### 自检脚本
 
 ```bash
-python scripts/check_ai_config.py            # 配置自洽性（字段、引用、INI/TOML 一致性、默认配置指向）
+python scripts/check_ai_config.py            # 配置自洽性（字段、引用、INI/TOML 一致性、内置片段一致性、默认配置指向）
 python scripts/check_generated.py 输出.yaml   # 生成结果校验（组归属、规则顺序、垃圾节点）
 ```
+
+`check_ai_config.py` 还会比对 `snippets/groups.txt` 与 `groups.toml`、`snippets/rulesets.txt` 与 `rulesets.toml`：
+这两套内置片段由上游分别维护，`AI_auto.ini` 走 `.txt`、`AI_auto.toml` 走 `.toml`，
+一旦其中一边被注释掉（例如 `🎥 NETFLIX` 组），INI 与 TOML 的输出就会悄悄不一致，脚本会直接报出来。
 
 #### 订阅缓存（强烈建议保持开启）
 
