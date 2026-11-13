@@ -62,6 +62,15 @@ struct Settings
     bool serveCacheOnFetchFail = false;
     int cacheSubscription = 60, cacheConfig = 300, cacheRuleset = 21600;
 
+    //subscription prefetch system
+    //解析阶段的暂存值。真正生效的副本由 handler/prefetch.cpp 自己持有并加锁，
+    //配置解析完成后通过 prefetch_apply_config() 整体提交，避免后台线程
+    //与 /readconf 并发读写同一个 vector。
+    bool enablePrefetch = false;
+    int prefetchInterval = 3600;
+    string_array prefetchUrls;
+    std::string barkUrl;
+
     //limits
     size_t maxAllowedRulesets = 64, maxAllowedRules = 32768;
     bool scriptCleanContext = false;

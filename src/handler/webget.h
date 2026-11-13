@@ -37,6 +37,9 @@ struct FetchResult
 
 int webGet(const FetchArgument& argument, FetchResult &result);
 std::string webGet(const std::string &url, const std::string &proxy = "", unsigned int cache_ttl = 0, std::string *response_headers = nullptr, string_icase_map *request_headers = nullptr);
+// 强制从上游抓取并写入 webGet 的本地缓存（绕过 TTL）。
+// 供订阅预取使用：成功返回 true，失败时保留原有缓存不动。
+bool webGetAndCache(const std::string &url, const std::string &proxy, std::string *content_out = nullptr, std::string *headers_out = nullptr);
 void flushCache();
 int webPost(const std::string &url, const std::string &data, const std::string &proxy, const string_icase_map &request_headers, std::string *retData);
 int webPatch(const std::string &url, const std::string &data, const std::string &proxy, const string_icase_map &request_headers, std::string *retData);

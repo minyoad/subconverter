@@ -38,6 +38,7 @@ ADD_EXECUTABLE(${BUILD_TARGET_NAME}
     src/generator/template/templates.cpp
     src/handler/interfaces.cpp
     src/handler/multithread.cpp
+    src/handler/prefetch.cpp
     src/handler/upload.cpp
     src/handler/webget.cpp
     src/handler/settings.cpp

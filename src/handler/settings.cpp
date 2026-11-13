@@ -3,6 +3,7 @@
 #include <toml.hpp>
 
 #include "config/binding.h"
+#include "handler/prefetch.h"
 #include "handler/webget.h"
 #include "script/cron.h"
 #include "server/webserver.h"
@@ -279,6 +280,22 @@ void refreshRulesets(RulesetConfigs &ruleset_list, std::vector<RulesetContent> &
         ruleset_content_array.emplace_back(std::move(rc));
     }
     ruleset_content_array.shrink_to_fit();
+}
+
+// 把解析阶段的暂存值打包成预取模块要的配置。
+// 在这里一次性把 default_url 拆好、代理解析好，预取线程之后就不再读 global.*，
+// 否则 /readconf 重载时会和后台线程读写同一份数据。
+static PrefetchOptions build_prefetch_options()
+{
+    PrefetchOptions options;
+    options.enable = global.enablePrefetch;
+    options.interval = global.prefetchInterval;
+    options.urls = global.prefetchUrls;
+    if(!global.defaultUrls.empty())
+        options.fallbackUrls = split(global.defaultUrls, "|");
+    options.proxy = parseProxy(global.proxySubscription);
+    options.barkUrl = global.barkUrl;
+    return options;
 }
 
 void readYAMLConf(YAML::Node &node)
@@ -562,7 +579,34 @@ void readYAMLConf(YAML::Node &node)
         node["advanced"]["script_clean_context"] >> global.scriptCleanContext;
         node["advanced"]["async_fetch_ruleset"] >> global.asyncFetchRuleset;
         node["advanced"]["skip_failed_links"] >> global.skipFailedLinks;
+
+        // 用 IsScalar 判断而不是直接 >>：老版本 pref.yml 里没有这几个键，
+        // 直接取值会抛 YAML::Exception，导致整份配置回退。
+        if(node["advanced"]["enable_prefetch"].IsScalar())
+            node["advanced"]["enable_prefetch"] >> global.enablePrefetch;
+        if(node["advanced"]["prefetch_interval"].IsScalar())
+            node["advanced"]["prefetch_interval"] >> global.prefetchInterval;
+        if(node["advanced"]["bark_url"].IsScalar())
+            node["advanced"]["bark_url"] >> global.barkUrl;
+        if(node["advanced"]["prefetch_url"].IsSequence())
+        {
+            node["advanced"]["prefetch_url"] >> global.prefetchUrls;
+        }
+        else if(node["advanced"]["prefetch_url"].IsScalar())
+        {
+            // 允许写成单条字符串，也兼容用 | 分隔
+            std::string val;
+            node["advanced"]["prefetch_url"] >> val;
+            for(auto &x : split(val, "|"))
+            {
+                std::string url = trim(x);
+                if(!url.empty())
+                    global.prefetchUrls.emplace_back(std::move(url));
+            }
+        }
     }
+
+    prefetch_apply_config(build_prefetch_options());
     writeLog(0, "Load preference settings in YAML format completed.", LOG_LEVEL_INFO);
 }
 
@@ -741,8 +785,29 @@ void readTOMLConf(toml::value &root)
                   "serve_cache_on_fetch_fail", global.serveCacheOnFetchFail,
                   "script_clean_context", global.scriptCleanContext,
                   "async_fetch_ruleset", global.asyncFetchRuleset,
-                  "skip_failed_links", global.skipFailedLinks
+                  "skip_failed_links", global.skipFailedLinks,
+                  "enable_prefetch", global.enablePrefetch,
+                  "prefetch_interval", global.prefetchInterval,
+                  "bark_url", global.barkUrl
     );
+
+    // prefetch_url 既允许写成数组，也允许写成单个字符串，
+    // 后者在 toml::find<string_array> 里会抛类型错误，所以单独处理。
+    if(section_advanced.contains("prefetch_url"))
+    {
+        const toml::value &v = section_advanced.at("prefetch_url");
+        string_array vArray;
+        if(v.is_array())
+            vArray = toml::get<string_array>(v);
+        else if(v.is_string())
+            vArray = split(toml::get<std::string>(v), "|");
+        for(auto &x : vArray)
+        {
+            std::string url = trim(x);
+            if(!url.empty())
+                global.prefetchUrls.emplace_back(std::move(url));
+        }
+    }
 
     if(global.printDbgInfo)
         global.logLevel = LOG_LEVEL_VERBOSE;
@@ -782,6 +847,7 @@ void readTOMLConf(toml::value &root)
         global.serveCacheOnFetchFail = false;
     }
 
+    prefetch_apply_config(build_prefetch_options());
     writeLog(0, "Load preference settings in TOML format completed.", LOG_LEVEL_INFO);
 }
 
@@ -794,6 +860,12 @@ void readConf()
     eraseElements(global.includeRemarks);
     eraseElements(global.customProxyGroups);
     eraseElements(global.customRulesets);
+    // 预取配置每轮都从默认值重新解析，避免配置文件里删掉某个键之后
+    // 还沿用上一次重载时的旧值。
+    eraseElements(global.prefetchUrls);
+    global.enablePrefetch = false;
+    global.prefetchInterval = 3600;
+    global.barkUrl.clear();
 
     try
     {
@@ -1073,6 +1145,26 @@ void readConf()
     ini.get_bool_if_exist("async_fetch_ruleset", global.asyncFetchRuleset);
     ini.get_bool_if_exist("skip_failed_links", global.skipFailedLinks);
 
+    // 订阅预取。prefetch_url 支持多条，也兼容用 | 分隔写在一行。
+    ini.get_bool_if_exist("enable_prefetch", global.enablePrefetch);
+    ini.get_int_if_exist("prefetch_interval", global.prefetchInterval);
+    ini.get_if_exist("bark_url", global.barkUrl);
+    if(ini.item_prefix_exist("prefetch_url"))
+    {
+        string_array vArray;
+        ini.get_all("prefetch_url", vArray);
+        for(auto &x : vArray)
+        {
+            for(auto &y : split(x, "|"))
+            {
+                std::string url = trim(y);
+                if(!url.empty())
+                    global.prefetchUrls.emplace_back(std::move(url));
+            }
+        }
+    }
+
+    prefetch_apply_config(build_prefetch_options());
     writeLog(0, "Load preference settings in INI format completed.", LOG_LEVEL_INFO);
 }
 

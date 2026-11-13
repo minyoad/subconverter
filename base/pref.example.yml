@@ -165,3 +165,13 @@ advanced:
   script_clean_context: true
   async_fetch_ruleset: false
   skip_failed_links: false
+  # Subscription prefetch: fetch subscriptions into the local cache at startup,
+  # then refresh every prefetch_interval seconds. Clients hit the cache on their
+  # first request, so they never wait for upstream and never hit rate limits.
+  # Set prefetch_url (or default_url in common) before turning this on.
+  enable_prefetch: false
+  prefetch_interval: 3600
+  # Subscriptions to prefetch. Leave empty to fall back to default_url in common.
+  prefetch_url: []
+  # Bark push URL used when a refresh fails (stop at the device key, no trailing slash)
+  bark_url: ""

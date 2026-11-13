@@ -364,6 +364,38 @@ std::string webGet(const std::string &url, const std::string &proxy, unsigned in
     return content;
 }
 
+bool webGetAndCache(const std::string &url, const std::string &proxy, std::string *content_out, std::string *headers_out)
+{
+    // 与 webGet() 使用同一套缓存文件与 TTL 目录，区别只在于忽略 TTL 强制回源。
+    // 这样预取写进去的内容，客户端请求时会被 webGet() 直接命中。
+    int return_code = 0;
+    std::string content, headers;
+
+    FetchArgument argument {HTTP_GET, url, proxy, nullptr, nullptr, nullptr, 0};
+    FetchResult fetch_res {&return_code, &content, &headers, nullptr};
+
+    curlGet(argument, fetch_res);
+    if(return_code != 200 || content.empty())
+    {
+        writeLog(0, "Prefetch failed: '" + url + "', status code " + std::to_string(return_code), LOG_LEVEL_WARNING);
+        return false;
+    }
+
+    md("cache");
+    const std::string path = "cache/" + getMD5(url), path_header = path + "_header";
+    cache_rw_lock.writeLock();
+    defer(cache_rw_lock.writeUnlock();)
+    fileWrite(path, content, true);
+    fileWrite(path_header, headers, true);
+
+    if(content_out)
+        *content_out = std::move(content);
+    if(headers_out)
+        *headers_out = std::move(headers);
+    writeLog(0, "Prefetch succeeded: '" + url + "'.", LOG_LEVEL_INFO);
+    return true;
+}
+
 void flushCache()
 {
     //guarded_mutex guard(cache_rw_lock);

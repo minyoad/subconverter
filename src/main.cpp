@@ -8,6 +8,7 @@
 
 #include "config/ruleset.h"
 #include "handler/interfaces.h"
+#include "handler/prefetch.h"
 #include "handler/webget.h"
 #include "handler/settings.h"
 #include "script/cron.h"
@@ -111,6 +112,8 @@ void cron_tick_caller()
 {
     if(global.enableCron)
         cron_tick();
+    // 订阅预取：内部按 prefetch_interval 自行节流
+    prefetch_tick();
 }
 
 int main(int argc, char *argv[])
@@ -176,6 +179,10 @@ int main(int argc, char *argv[])
 
     if(global.generatorMode)
         return simpleGenerator();
+
+    // 启动即预取一次订阅，客户端第一次请求就能命中本地缓存。
+    // 放在启动阶段而不是第一次请求里，是为了避免首个请求被上游拖慢。
+    prefetch_on_startup();
 
     /*
     webServer.append_response("GET", "/", "text/plain", [](RESPONSE_CALLBACK_ARGS) -> std::string
@@ -258,6 +265,16 @@ int main(int argc, char *argv[])
         }
         flushCache();
         return "done";
+    });
+
+    webServer.append_response("GET", "/prefetch", "text/plain", [](RESPONSE_CALLBACK_ARGS) -> std::string
+    {
+        if(getUrlArg(request.argument, "token") != global.accessToken)
+        {
+            response.status_code = 403;
+            return "Forbidden";
+        }
+        return prefetch_now() + "\n";
     });
 
     webServer.append_response("GET", "/sub", "text/plain;charset=utf-8", subconverter);

@@ -19,6 +19,13 @@ import io
 import re
 import sys
 
+# Windows 控制台默认 GBK，组名里带 emoji。
+# 只放宽错误处理、不强制改编码：GBK 终端里中文照常显示，emoji 变成 ?；
+# UTF-8 终端（chcp 65001 / Windows Terminal）不受影响。
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, 'reconfigure'):
+        _stream.reconfigure(errors='replace')
+
 try:
     import yaml
 except ImportError:

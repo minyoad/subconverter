@@ -1392,6 +1392,7 @@ exclude_remarks=(距离|剩余|重置|流量|到期|过期|官网|套餐|时间|
 ```bash
 python scripts/check_ai_config.py            # 配置自洽性（字段、引用、INI/TOML 一致性、内置片段一致性、默认配置指向）
 python scripts/check_generated.py 输出.yaml   # 生成结果校验（组归属、规则顺序、垃圾节点）
+python scripts/check_prefetch_config.py      # 订阅预取 / Bark 告警配置校验
 ```
 
 `check_ai_config.py` 还会比对 `snippets/groups.txt` 与 `groups.toml`、`snippets/rulesets.txt` 与 `rulesets.toml`：
@@ -1427,6 +1428,75 @@ serve_cache_on_fetch_fail=true   ; 抓取失败时用旧缓存兜底
 > 注意：`enable_cache=false` 会把三个 TTL 全部清零，日志里连 `CACHE HIT` 都看不到。
 > 想确认缓存是否生效，可以把 `log_level` 临时设为 `verbose`，然后看是否出现
 > `CACHE HIT` / `Fetch failed. Serving cached content.`。
+
+#### 订阅预取与 Bark 告警
+
+上面的缓存只在「有人请求」时才会回源：如果服务刚启动，第一个客户端仍然要等上游；
+如果上游那一次刚好超时，该请求就会失败。预取解决的就是这两点——
+**启动时先把订阅抓进本地缓存，之后按固定间隔定期刷新**，客户端连上来直接读缓存。
+
+配置都在 `[advanced]` 段（`pref.example.ini` / `.toml` / `.yml` 三份示例一致）：
+
+```ini
+; 预取开关。填好下面的 prefetch_url（或 common 里的 default_url）后再改成 true
+enable_prefetch=true
+
+; 预取/刷新间隔，单位秒。3600 = 每小时刷新一次
+prefetch_interval=3600
+
+; 要预取的订阅地址，可写多行，也可用 | 分隔写在一行
+; 留空则回退到 [common] 的 default_url
+prefetch_url=https://example.com/api/v1/client/subscribe?token=xxx
+
+; 订阅刷新失败时的 Bark 推送地址（填到 device key 为止，不要带结尾斜杠）
+bark_url=https://bark.mybacc.com/ZbWNYe9g3yJqvRsrmoVHWH
+```
+
+要点：
+
+- **缓存位置与普通缓存完全相同**：预取写入 `cache/<MD5(订阅地址)>`，客户端请求 `/sub?url=...`
+  时由 `webGet()` 正常命中。所以订阅地址必须和客户端用的**完全一致**（含 query 串），
+  否则就是两个不同的缓存键。`prefetch_url` 就是为「客户端地址带一堆参数」这种场景准备的：
+  把它配成客户端实际使用的完整地址即可。
+- **失败不清空旧缓存**：抓取失败时只写告警日志并推送 Bark，上一份成功的内容继续可用；
+  再配合 `serve_cache_on_fetch_fail=true`，客户端不会因为一次上游抖动而拿不到配置。
+- **失败会提前重试**：成功时按 `prefetch_interval` 排下一次；有失败则改为 300 秒后重试
+  （取两者较小值），避免上游抖一下就要等一小时。
+- **必须同时开启缓存**：预取写进的就是 `webGet()` 的缓存，如果 `enable_cache=false`
+  （`cache_subscription=0`），客户端根本不会读缓存，预取就成了空转。
+  启动时检测到这种组合会打一条 WARNING。
+- **启动即预取，但不阻塞监听**：启动时立刻发起一轮预取，但跑在后台线程里，
+  上游挂掉时不会把「开始监听端口」一起拖住。极端情况下首个请求可能没赶上缓存，
+  此时会退回原有逻辑自行回源一次，不会失败。
+- **刷新跑在后台线程**：定期刷新同样不阻塞 `webServer` 的 looper（cron 也在里面跑），
+  上一轮没跑完时下一轮直接跳过，不会堆积。
+- **改配置后立即生效**：`/readconf` 重新加载时，只要四个预取键有变化就会清空排期，
+  下一次 looper tick 立即用新配置重新预取；配置没变则不动排期，避免
+  `reload_conf_on_request=true` 时每个请求都触发一次回源。如果改配置时正好有一轮
+  预取在跑，这一轮结束后会自动再跑一次新配置，不会出现「新地址要等满一小时」的情况。
+- **手动触发**：`GET /prefetch?token=<api_access_token>`，返回 `n/m succeeded`。
+  与 `/flushcache` 一致：配了 `api_access_token` 就必须带对 `token`，
+  没配则不带也能调用。
+
+Bark 的 URL 结构与官方一致：`{bark_url}/{title}/{body}?group=subconverter&ttl=600`，
+标题和正文都会做 URL 编码，失败时会一次性把所有失败地址列在正文里。实测等价于：
+
+```bash
+curl -X GET 'https://bark.mybacc.com/ZbWNYe9g3yJqvRsrmoVHWH/订阅刷新失败/xxx?group=subconverter&ttl=600'
+```
+
+`pref.example.*` 里默认是 `enable_prefetch=false`：模板里没有可用的订阅地址，
+直接打开只会每轮打一条 `Prefetch skipped` 日志。按需填好地址再开启即可。
+
+配置自检：
+
+```bash
+python scripts/check_prefetch_config.py
+```
+
+它会检查三个示例文件里四个键是否齐全、`prefetch_interval` 是否为正数、
+开启预取时是否至少能确定一个订阅地址（`prefetch_url` 或 `default_url`），
+以及 `bark_url` 是否误带了结尾斜杠或 `/title/body`。
 
 ### 模板功能
 
