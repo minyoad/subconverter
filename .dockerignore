@@ -11,7 +11,12 @@ base/nodes.txt
 base/pref.ini
 
 # 本地编译产物
-build/
+# ⚠ build/ 不能整体排除：Dockerfile.runtime 需要 COPY build/subconverter
+#   若要排除其他构建中间文件，请逐个列出，不要写 build/
+build/CMakeCache.txt
+build/CMakeFiles
+build/Makefile
+build/*.ninja
 subconverter
 subconverter.exe
 
