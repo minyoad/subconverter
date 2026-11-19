@@ -1,6 +1,9 @@
 common:
   api_mode: false
   api_access_token: password
+  # User-Agent used for all outbound requests. Some airports only allow Clash-like UAs.
+  # Empty falls back to the built-in default (clash-verge/v1.5.0).
+  user_agent: clash-verge/v1.5.0
   default_url: []
   enable_insert: true
   insert_url: []

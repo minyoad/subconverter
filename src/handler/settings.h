@@ -14,6 +14,10 @@
 #include "utils/stl_extra.h"
 #include "utils/tribool.h"
 
+// 所有远程请求（订阅 / 规则集 / 外部配置 / 预取）默认使用的 User-Agent。
+// 部分机场的 Cloudflare 只放行 Clash 系 UA，用这个可以让预取也正常工作。
+constexpr const char *DEFAULT_USER_AGENT = "clash-verge/v1.5.0";
+
 struct Settings
 {
     //common settings
@@ -28,6 +32,9 @@ struct Settings
     bool APIMode = true, writeManagedConfig = false, enableRuleGen = true, updateRulesetOnRequest = false, overwriteOriginalRules = true;
     bool printDbgInfo = false, CFWChildProcess = false, appendUserinfo = true, asyncFetchRuleset = false, surgeResolveHostname = true;
     std::string accessToken, basePath = "base";
+    // 所有远程请求统一使用的 User-Agent，可在配置文件 [common] 段用
+    // user_agent 覆盖；留空则回退到 DEFAULT_USER_AGENT。
+    std::string userAgent = DEFAULT_USER_AGENT;
     std::string custom_group;
     int logLevel = LOG_LEVEL_VERBOSE;
     long maxAllowedDownloadSize = 1048576L;

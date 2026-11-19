@@ -16,6 +16,11 @@ __pycache__/
 base/nodes.txt
 base/pref.ini
 
+# 旧的 TOML 配置：含 api_access_token 和航班订阅地址
+# 已迁移到 base/pref.ini，这里保留忽略避免误提交
+pref.toml
+pref.yml
+
 # ---------------------------------------------------------------
 # 本地 Docker 部署文件（不入库，仅本机使用）
 # ---------------------------------------------------------------
@@ -25,3 +30,6 @@ DOCKER_DEPLOY.md
 
 # 本地构建日志
 .cibuild.log
+
+# 本地 Linux 构建产物（CI 会自己构建，不需要入库）
+build-linux/

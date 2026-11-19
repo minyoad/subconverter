@@ -8,6 +8,7 @@
 #include "script/cron.h"
 #include "server/webserver.h"
 #include "utils/logger.h"
+#include "utils/string.h"
 #include "utils/network.h"
 #include "interfaces.h"
 #include "multithread.h"
@@ -355,6 +356,7 @@ void readYAMLConf(YAML::Node &node)
     section["proxy_config"] >> global.proxyConfig;
     section["proxy_ruleset"] >> global.proxyRuleset;
     section["proxy_subscription"] >> global.proxySubscription;
+    section["user_agent"] >> global.userAgent;
     section["reload_conf_on_request"] >> global.reloadConfOnRequest;
 
     if(node["userinfo"].IsDefined())
@@ -658,6 +660,7 @@ void readTOMLConf(toml::value &root)
                   "proxy_config", global.proxyConfig,
                   "proxy_ruleset", global.proxyRuleset,
                   "proxy_subscription", global.proxySubscription,
+                  "user_agent", global.userAgent,
                   "append_proxy_type", global.appendType,
                   "reload_conf_on_request", global.reloadConfOnRequest
     );
@@ -866,6 +869,7 @@ void readConf()
     global.enablePrefetch = false;
     global.prefetchInterval = 3600;
     global.barkUrl.clear();
+    global.userAgent = DEFAULT_USER_AGENT;
 
     try
     {
@@ -876,9 +880,14 @@ void readConf()
             if(yaml.size() && yaml["common"])
                 return readYAMLConf(yaml);
         }
-        toml::value conf = parseToml(prefdata, global.prefPath);
-        if(!conf.is_empty() && toml::find_or<int>(conf, "version", 0))
-            return readTOMLConf(conf);
+        // 仅当配置文件是 TOML 格式时才尝试 TOML 解析，
+        // 避免 INI 文件里的非 ASCII 注释触发 toml11 的无效 key 报错。
+        if(endsWith(global.prefPath, ".toml"))
+        {
+            toml::value conf = parseToml(prefdata, global.prefPath);
+            if(!conf.is_empty() && toml::find_or<int>(conf, "version", 0))
+                return readTOMLConf(conf);
+        }
     }
     catch (YAML::Exception &e)
     {
@@ -908,6 +917,7 @@ void readConf()
     ini.enter_section("common");
     ini.get_bool_if_exist("api_mode", global.APIMode);
     ini.get_if_exist("api_access_token", global.accessToken);
+    ini.get_if_exist("user_agent", global.userAgent);
     ini.get_if_exist("default_url", global.defaultUrls);
     global.enableInsert = ini.get("enable_insert");
     ini.get_if_exist("insert_url", global.insertUrls);

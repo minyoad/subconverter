@@ -6,6 +6,12 @@ api_mode = false
 # Access token used for performing critical action through Web interface
 api_access_token = "password"
 
+# User-Agent used for all outbound requests (subscriptions, rulesets, external configs, prefetch).
+# Some airports' Cloudflare only allows Clash-like UAs and rejects everything else with 403.
+# Client request headers are NOT forwarded, so every caller gets identical results.
+# Leave empty to fall back to the built-in default (clash-verge/v1.5.0).
+user_agent = "clash-verge/v1.5.0"
+
 # Default URLs, used when no URL is provided in request, use "|" to separate multiple subscription links, supports local files/URL
 default_url = []
 

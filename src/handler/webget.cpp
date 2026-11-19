@@ -30,8 +30,8 @@ std::mutex cache_rw_lock;
 
 RWLock cache_rw_lock;
 
-//std::string user_agent_str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36";
-static auto user_agent_str = "subconverter/" VERSION " cURL/" LIBCURL_VERSION;
+// 默认 UA 已移到 global.userAgent（见 settings.h），可在配置文件里覆盖。
+// 这里保留版本信息只在日志/请求头里用。
 
 struct curl_progress_data
 {
@@ -168,15 +168,21 @@ static int curlGet(const FetchArgument &argument, FetchResult &result)
     limit.size_limit = global.maxAllowedDownloadSize;
     curl_set_common_options(curl_handle, new_url.data(), &limit);
     header_list = curl_slist_append(header_list, "Content-Type: application/json;charset=utf-8");
+    // User-Agent 统一由 global.userAgent 决定，不再透传客户端请求里的 UA。
+    // 原因：订阅源（如部分机场的 Cloudflare）按 UA 白名单放行，
+    // 透传会让「浏览器访问 → 403」「预取线程 → 403」出现不一致。
+    const std::string ua = global.userAgent.empty() ? std::string(DEFAULT_USER_AGENT) : global.userAgent;
+    curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, ua.c_str());
     if(argument.request_headers)
     {
         for(auto &x : *argument.request_headers)
         {
+            // 跳过客户端自带的 User-Agent，避免覆盖上面的统一 UA
+            if(toLower(x.first) == "user-agent")
+                continue;
             auto header = x.first + ": " + x.second;
             header_list = curl_slist_append(header_list, header.data());
         }
-        if(!argument.request_headers->contains("User-Agent"))
-            curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, user_agent_str);
     }
     header_list = curl_slist_append(header_list, "SubConverter-Request: 1");
     header_list = curl_slist_append(header_list, "SubConverter-Version: " VERSION);
