@@ -192,21 +192,101 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ghcr.io/${{ github.repository_owner }}/subconverter
+        # 用 github.repository 而不是硬编码 owner，fork 后无需改文件
+        # 结果形如 ghcr.io/minyoad/subconverter
+        images: ghcr.io/${{ github.repository }}
         tags: |
           type=ref,event=branch
-          type=ref,event=pr
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
           type=sha,format=short
-    - name: Build and push
+          type=raw,value=latest,enable={{is_default_branch}}
+    - name: Build (load locally, no push yet)
       uses: docker/build-push-action@v6
       with:
         context: .
         file: scripts/Dockerfile.ci
-        push: true
+        # 先只构建并加载到本地，不推送（push/load 不能同时用）
+        # 这样后面才能 docker run 做冒烟测试，测完再推送
+        push: false
+        load: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
-        platforms: linux/amd64,linux/arm64
+        # 只需要 amd64：目标是 x86-64 VPS。
+        # 若还要 arm64（树莓派/Oracle ARM），改成 linux/amd64,linux/arm64，
+        # 但那样就不能用 load（多平台镜像无法加载到本地），
+        # 需要改成直接 push，并跳过下面的冒烟测试
+        platforms: linux/amd64
         cache-from: type=gha
         cache-to: type=gha,mode=max
+
+    # 关键步骤：验证镜像真的能解析 VLESS+Reality
+    # 因为上游官方镜像没有这个能力，光「构建成功」不能说明问题
+    - name: Smoke test - verify VLESS/Reality support
+      run: |
+        set -euo pipefail
+        # tags 是多行，取第一行（用 sed 而不是 head，避免 pipefail 下的 SIGPIPE）
+        IMAGE=$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | sed -n '1p')
+        echo "Testing image: $IMAGE"
+
+        # 构造一个虚构的 Reality 节点，单行 base64（末尾不能有换行）
+        URI='vless://00000000-0000-0000-0000-000000000000@192.0.2.1:443?encryption=none&security=reality&sni=www.cloudflare.com&fp=chrome&pbk=TESTPUBLICKEYTESTPUBLICKEYTESTPUBLICKEYTESTPUBK&sid=0123456789abcdef&type=tcp&flow=xtls-rprx-vision#SmokeTestNode'
+        B64=$(printf '%s' "$URI" | base64 -w 0)
+        printf '%s' "$B64" > nodes.txt
+
+        # 直接把仓库里的 pref.example.ini 挂成 pref.ini。
+        # 这正是镜像首次启动时的行为（main.cpp 会 copy pref.example.ini -> pref.ini），
+        # 所以能顺带验证模板与规则是否打包正确。
+        #   listen=0.0.0.0  -> 容器外可访问
+        #   base_path=base  -> 相对路径，isInScope() 允许
+        #   default_url= 空 -> 每个请求必须自己带 url= 参数
+        docker run -d --name sc-smoke -p 25500:25500 \
+          -w /base \
+          -v "$PWD/nodes.txt:/base/nodes.txt:ro" \
+          -v "$PWD/base/pref.example.ini:/base/pref.ini:ro" \
+          "$IMAGE"
+
+        # 等待启动
+        for i in $(seq 1 20); do
+          if curl -sf "http://127.0.0.1:25500/version" >/dev/null 2>&1; then break; fi
+          sleep 1
+        done
+
+        OUT=$(curl -s "http://127.0.0.1:25500/sub?target=clash&url=nodes.txt" || true)
+        docker logs sc-smoke 2>&1 | tail -20 || true
+
+        echo "--- 检查输出（前 30 行）---"
+        # 用 sed 而不是 head：pipefail 下 head 提前退出会让 echo 收到 SIGPIPE 而中断
+        printf '%s\n' "$OUT" | sed -n '1,30p'
+
+        # 断言：必须输出 reality-opts，否则说明 VLESS 支持没编进去
+        #
+        # ⚠ 这里必须用 here-string（<<<），不能用 printf | grep -q：
+        #   CI 里开了 set -o pipefail，grep -q 匹配成功后立刻退出，
+        #   printf 还没写完就会收到 SIGPIPE（退出码 141），
+        #   pipefail 把 141 当成失败 —— 明明有 reality-opts 也会误报失败。
+        #   真实输出 40 万字节且 reality-opts 在第 8 行，必然触发。
+        grep -q 'reality-opts' <<< "$OUT" \
+          || { echo "::error::镜像缺少 VLESS/Reality 支持（没有 reality-opts）"; exit 1; }
+        grep -q 'public-key' <<< "$OUT" \
+          || { echo "::error::缺 public-key"; exit 1; }
+        grep -q 'short-id' <<< "$OUT" \
+          || { echo "::error::缺 short-id"; exit 1; }
+        grep -q 'xtls-rprx-vision' <<< "$OUT" \
+          || { echo "::error::缺 flow"; exit 1; }
+
+        echo "✅ VLESS/Reality 支持验证通过（reality-opts / public-key / short-id / flow）"
+
+    # 冒烟测试通过后才推送，避免把坏镜像发到 ghcr.io
+    - name: Push image
+      run: |
+        set -euo pipefail
+        while IFS= read -r tag; do
+          [ -z "$tag" ] && continue
+          echo "Pushing $tag"
+          docker push "$tag"
+        done <<< "${{ steps.meta.outputs.tags }}"
+
+    - name: Cleanup
+      if: always()
+      run: docker rm -f sc-smoke 2>/dev/null || true

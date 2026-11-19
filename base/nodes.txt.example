@@ -1,0 +1,30 @@
+# 节点订阅文件（示例）
+#
+# ---------------------------------------------------------------
+# 怎么用
+# ---------------------------------------------------------------
+# 1. 复制这个文件为 nodes.txt（nodes.txt 已在 .gitignore 中，不会提交）
+#      cp base/nodes.txt.example base/nodes.txt
+# 2. 把文件最后一行的 base64 占位内容替换成你自己的订阅
+# 3. 重启 subconverter：
+#      docker compose restart
+#
+# ---------------------------------------------------------------
+# 为什么必须是「单行 base64，且结尾不能有换行」
+# ---------------------------------------------------------------
+# subconverter 的 explodeSub() 会对非 Clash/Surge 内容无条件执行
+# urlSafeBase64Decode（见 src/parser/subparser.cpp:3019）。
+# 所以明文 vless:// 链接会被当成 base64 解码而破坏；
+# 而多行 base64 也不行 —— base64Decode 会把 \n 原样拷进 URI 里。
+#
+# 正确做法（Linux/macOS）：
+#   printf '%s' '你的订阅明文' | base64 -w 0 > base/nodes.txt
+#
+# macOS 的 base64 不支持 -w，用：
+#   printf '%s' '你的订阅明文' | base64 | tr -d '\n' > base/nodes.txt
+#
+# ---------------------------------------------------------------
+# 下面这一行是占位示例（解码后是虚构节点，不能直接用）
+# 真实内容请替换整行，并且保证文件里只有这一行、末尾无换行
+# ---------------------------------------------------------------
+dmxlc3M6Ly8wMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDBAMTkyLjAuMi4xOjQ0Mz9lbmNyeXB0aW9uPW5vbmUmc2VjdXJpdHk9cmVhbGl0eSZzbmk9d3d3LmNsb3VkZmxhcmUuY29tJmZwPWNocm9tZSZwYms9UkVQTEFDRV9XSVRIX1lPVVJfUFVCTElDX0tFWSZzaWQ9UkVQTEFDRV9XSVRIX1lPVVJfU0hPUlRfSUQmdHlwZT10Y3AmZmxvdz14dGxzLXJwcngtdmlzaW9uI+ekuuS+i+iKgueCuQ==

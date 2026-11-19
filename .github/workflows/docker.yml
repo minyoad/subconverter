@@ -1,9 +1,29 @@
 name: Publish Docker Image
-on: 
-  push:
-    branches: [ master ]
-    tags:
-      - '**'
+
+# ⚠ 本 workflow 已停用（disabled）。
+#
+# 原因：
+#   1. REGISTRY_IMAGE 写死为 tindy2013/subconverter —— 这是上游仓库，
+#      本 fork 没有推送权限，任何 push 都会在登录/推送步骤失败。
+#   2. 它用的 scripts/Dockerfile:38 是 `git clone tindy2013/subconverter`，
+#      编译出来的是【上游代码】，不含本分支的 VLESS + REALITY 支持。
+#      即使能推送成功，镜像也只能解析普通协议，Reality 节点会被丢弃。
+#
+# 正确的 Docker 编译在 build.yml 的 docker job：
+#   - 用 scripts/Dockerfile.ci（COPY 本地代码，非 clone 上游）
+#   - 推送到 ghcr.io/${{ github.repository }}
+#   - 推送前有 VLESS/Reality 冒烟测试门禁
+#
+# 如果需要恢复此文件，先把 REGISTRY_IMAGE 改成本仓库，
+# 并把 scripts/Dockerfile 里的 clone 换成 COPY 本地源码。
+on:
+  # 保留手动触发，方便调试；默认不随 push 自动运行
+  workflow_dispatch:
+  # 原来自动触发的配置已注释掉：
+  # push:
+  #   branches: [ master ]
+  #   tags:
+  #     - '**'
 
 concurrency: 
   group: ${{ github.ref }}-${{ github.workflow }}
@@ -14,6 +34,8 @@ env:
 
 jobs:
   build:
+    # 永久跳过（即使手动触发也不运行），避免误推送或产出无 Reality 支持的镜像
+    if: false
     strategy:
       matrix:
         include:
@@ -89,6 +111,8 @@ jobs:
 
   merge:
     name: Merge
+    # 上游 build 已停用，merge 一并跳过
+    if: false
     needs: build
     runs-on: ubuntu-latest
     steps:

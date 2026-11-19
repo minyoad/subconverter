@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/var/cache/apk \
     apk add --no-cache --virtual .build-deps curl-dev rapidjson-dev pcre2-dev yaml-cpp-dev && \
     git clone https://github.com/ftk/quickjspp --depth=1 && \
     cd quickjspp && \
-    git submodule update --init && \
+    git submodule update --init --depth=1 && \
     cmake -DCMAKE_BUILD_TYPE=Release . && \
     make quickjs -j $THREADS && \
     install -d /usr/lib/quickjs/ && \
@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/var/cache/apk \
     cd .. && \
     git clone https://github.com/PerMalmberg/libcron --depth=1 && \
     cd libcron && \
-    git submodule update --init && \
+    git submodule update --init --depth=1 libcron/externals/date && \
     cmake -DCMAKE_BUILD_TYPE=Release . && \
     make libcron -j $THREADS && \
     install -m644 libcron/out/Release/liblibcron.a /usr/lib/ && \
@@ -37,26 +37,32 @@ RUN --mount=type=cache,target=/var/cache/apk \
 # build subconverter (with pip cache)
 COPY . /subconverter/
 WORKDIR /subconverter
+# 注意：update_rules.py 会 git clone ACL4SSR 等规则仓库（scripts/rules_config.conf）
+# 它依赖 GitHub 直连，Actions runner 上通常没问题；
+# 若哪天失败，临时注释掉这一行即可用仓库里已提交的 rules 继续构建
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m ensurepip && \
     python3 -m pip install gitpython && \
-    python3 scripts/update_rules.py -c scripts/rules_config.conf && \
+    (python3 scripts/update_rules.py -c scripts/rules_config.conf || echo "WARN: rules update failed, using committed rules") && \
     cmake -DCMAKE_BUILD_TYPE=Release . && \
     make -j $THREADS
 
 # build final image
 FROM alpine:3.16
 
-RUN apk add --no-cache --virtual subconverter-deps pcre2 libcurl yaml-cpp
+# tzdata 必须装，否则 /usr/share/zoneinfo/Asia/Shanghai 不存在，ln -sf 会创建死链
+RUN apk add --no-cache --virtual subconverter-deps pcre2 libcurl yaml-cpp tzdata
 
 COPY --from=builder /subconverter/subconverter /usr/bin/
 COPY --from=builder /subconverter/base /base/
 
-ENV TZ=Africa/Abidjan
-RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime
-RUN echo $TZ > /etc/timezone
+# 时区按需改；Docker 部署时也可用 environment: TZ=... 覆盖
+ENV TZ=Asia/Shanghai
+RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone
 
 WORKDIR /base
-CMD subconverter
+# exec 形式：让 subconverter 成为 PID 1，docker stop 的 SIGTERM 能直接送达
+CMD ["subconverter"]
 
 EXPOSE 25500/tcp

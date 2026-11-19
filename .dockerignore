@@ -1,0 +1,29 @@
+# 不要把本地凭据/编译产物送进构建上下文
+#
+# .gitignore 只管 git，不管 docker build 的 context；
+# 而 Dockerfile.ci 里是 COPY . /subconverter/，
+# 没有 .dockerignore 的话，本地的 base/nodes.txt、base/pref.ini
+# （含真实服务器地址 / UUID / Reality 公钥）会被拷进 builder 层。
+# 虽然最终镜像只 COPY base，但那会把真实节点打进发布的镜像里。
+
+# 本地真实配置与节点
+base/nodes.txt
+base/pref.ini
+
+# 本地编译产物
+build/
+subconverter
+subconverter.exe
+
+# 版本控制与编辑器
+.git
+.gitignore
+.vscode
+.idea
+cmake-build-debug*
+
+# 临时/缓存
+base/cache
+tmp/
+__pycache__/
+*.pyc

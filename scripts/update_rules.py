@@ -67,7 +67,16 @@ def main():
         r = open_repo(repo_path)
         if r is None:
             logging.info(f"cloning repo {url} to {repo_path}")
-            r = Repo.clone_from(url, repo_path)
+            # 网络问题时不要让整个脚本崩掉：
+            # 保留仓库里已提交的规则，继续构建
+            try:
+                r = Repo.clone_from(url, repo_path)
+            except Exception as e:
+                logging.error(f"clone failed for {url}: {e}")
+                # 清掉半成品目录，否则下次 open_repo() 会当成有效仓库，
+                # 后续 checkout 全部失败
+                shutil.rmtree(repo_path, ignore_errors=True)
+                continue
         else:
             logging.info(f"repo {repo_path} exists")
             
