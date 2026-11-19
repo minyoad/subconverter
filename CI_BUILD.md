@@ -2,6 +2,17 @@
 
 本仓库已配置好 CI，push 到 `master` 即自动编译并推送到 **GitHub Container Registry (ghcr.io)**。
 
+**已验证的产出**：
+
+```
+ghcr.io/minyoad/subconverter:latest     ← 22 MB
+ghcr.io/minyoad/subconverter:master
+ghcr.io/minyoad/subconverter:sha-07ffd13
+```
+
+实测：CI 全程 3 分 8 秒（命中 GHA 缓存），冒烟测试通过，镜像可匿名拉取（包已设为 public），
+真实 Reality 节点解析正常（`reality-opts` / `public-key` / `short-id` / `flow` 全部正确）。
+
 ---
 
 ## 一、为什么必须自己编译
@@ -57,7 +68,7 @@ git push origin master
 ### 2. 等待构建
 
 Actions 页面观察。首次约 **25–35 分钟**（要编译 quickjs / libcron / toml11 / subconverter），
-之后有 GHA 缓存会快很多。
+之后有 GHA 缓存会快很多（实测第二次提交只用了 **3 分 8 秒**）。
 
 ### 3. 拉取镜像
 
@@ -71,7 +82,14 @@ ghcr.io/minyoad/subconverter:sha-abc1234   # 按 commit
 
 **注意**：即使仓库是公开的，ghcr 的包默认是 **private**。
 
-拉取前需要登录（用 GitHub Personal Access Token，勾选 `read:packages`）：
+> ✅ 本仓库的包已设为 **public**，可以直接匿名拉取，实测有效：
+>
+> ```bash
+> docker pull ghcr.io/minyoad/subconverter:latest   # 无需登录
+> ```
+
+如果遇到包是 private 的情况，拉取前需要登录
+（用 GitHub Personal Access Token，勾选 `read:packages`）：
 
 ```bash
 echo $GHCR_TOKEN | docker login ghcr.io -u <你的GitHub用户名> --password-stdin
