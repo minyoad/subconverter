@@ -4,6 +4,8 @@
 #include <string>
 #include <map>
 
+#include <curl/curl.h>
+
 #include "utils/map_extra.h"
 #include "utils/string.h"
 
@@ -33,6 +35,9 @@ struct FetchResult
     std::string *content = nullptr;
     std::string *response_headers = nullptr;
     std::string *cookies = nullptr;
+    // 传输层的真实结果（CURLcode）。status_code 只反映服务端返回的 HTTP 码，
+    // 超时 / 连接重置这类情况下 HTTP 码可能仍是 200，必须靠它区分。
+    CURLcode *curl_code = nullptr;
 };
 
 int webGet(const FetchArgument& argument, FetchResult &result);

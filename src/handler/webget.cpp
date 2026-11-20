@@ -131,7 +131,10 @@ static inline void curl_set_common_options(CURL *curl_handle, const char *url, c
     curl_easy_setopt(curl_handle, CURLOPT_MAXREDIRS, 20L);
     curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl_handle, CURLOPT_SSL_VERIFYHOST, 0L);
-    curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, 15L);
+    // 下载超时可配置：慢速订阅源（实测 59goa 需 17-20 秒）会被 15 秒卡掉。
+    // 配错成 0 或负数时回退到 15 秒，避免 curl 把 0 当「不限时」。
+    long timeout = global.downloadTimeout > 0 ? global.downloadTimeout : 15L;
+    curl_easy_setopt(curl_handle, CURLOPT_TIMEOUT, timeout);
     curl_easy_setopt(curl_handle, CURLOPT_COOKIEFILE, "");
     if(data)
     {
@@ -249,6 +252,9 @@ static int curlGet(const FetchArgument &argument, FetchResult &result)
     long code = 0;
     curl_easy_getinfo(curl_handle, CURLINFO_HTTP_CODE, &code);
     *result.status_code = code;
+    // 传输层结果单独带回：超时时 HTTP 码可能停在 200，只看 code 会误判成功。
+    if(result.curl_code)
+        *result.curl_code = static_cast<CURLcode>(retVal);
 
     if(result.cookies)
     {
@@ -306,10 +312,11 @@ std::string buildSocks5ProxyString(const std::string &addr, int port, const std:
 std::string webGet(const std::string &url, const std::string &proxy, unsigned int cache_ttl, std::string *response_headers, string_icase_map *request_headers)
 {
     int return_code = 0;
+    CURLcode curl_code = CURLE_OK;
     std::string content;
 
     FetchArgument argument {HTTP_GET, url, proxy, nullptr, request_headers, nullptr, cache_ttl};
-    FetchResult fetch_res {&return_code, &content, response_headers, nullptr};
+    FetchResult fetch_res {&return_code, &content, response_headers, nullptr, &curl_code};
 
     if (startsWith(url, "data:"))
         return dataGet(url);
@@ -339,7 +346,7 @@ std::string webGet(const std::string &url, const std::string &proxy, unsigned in
             writeLog(0, "CACHE NOT EXIST: '" + url + "', creating new cache.");
         //content = curlGet(url, proxy, response_headers, return_code); // try to fetch data
         curlGet(argument, fetch_res);
-        if(return_code == 200) // success, save new cache
+        if(curl_code == CURLE_OK && return_code == 200) // success, save new cache
         {
             //guarded_mutex guard(cache_rw_lock);
             cache_rw_lock.writeLock();
@@ -375,15 +382,22 @@ bool webGetAndCache(const std::string &url, const std::string &proxy, std::strin
     // 与 webGet() 使用同一套缓存文件与 TTL 目录，区别只在于忽略 TTL 强制回源。
     // 这样预取写进去的内容，客户端请求时会被 webGet() 直接命中。
     int return_code = 0;
+    CURLcode curl_code = CURLE_OK;
     std::string content, headers;
 
     FetchArgument argument {HTTP_GET, url, proxy, nullptr, nullptr, nullptr, 0};
-    FetchResult fetch_res {&return_code, &content, &headers, nullptr};
+    FetchResult fetch_res {&return_code, &content, &headers, nullptr, &curl_code};
 
     curlGet(argument, fetch_res);
-    if(return_code != 200 || content.empty())
+    // 必须同时看 curl_code 和 content：
+    //   超时时 curl 返回 CURLE_OPERATION_TIMEDOUT，但 CURLINFO_HTTP_CODE 可能仍停在 200
+    //   （响应头已到、正文没下完），只看 return_code 会误报成功。
+    if(curl_code != CURLE_OK || return_code != 200 || content.empty())
     {
-        writeLog(0, "Prefetch failed: '" + url + "', status code " + std::to_string(return_code), LOG_LEVEL_WARNING);
+        std::string reason = curl_code != CURLE_OK
+            ? std::string(curl_easy_strerror(curl_code)) + " (HTTP " + std::to_string(return_code) + ")"
+            : (return_code != 200 ? "HTTP " + std::to_string(return_code) : "empty response");
+        writeLog(0, "Prefetch failed: '" + url + "', " + reason, LOG_LEVEL_WARNING);
         return false;
     }
 

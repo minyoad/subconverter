@@ -38,6 +38,9 @@ struct Settings
     std::string custom_group;
     int logLevel = LOG_LEVEL_VERBOSE;
     long maxAllowedDownloadSize = 1048576L;
+    // 单个远程请求的下载超时（秒）。慢速订阅源（如 59goa 需要 17-20 秒）
+    // 用默认 15 秒会被截断，可在配置里用 download_timeout 放大。
+    long downloadTimeout = 15L;
     string_map aliases;
 
     //global variables for template
